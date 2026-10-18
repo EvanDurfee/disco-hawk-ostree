@@ -10,6 +10,15 @@ base-image: ghcr.io/ublue-os/bluefin-dx
 #base-image: ghcr.io/ublue-os/bazzite-dx
 image-version: stable # You can pin to a specific version of Fedora as well
 
+# build stages, run before the main image; their output is pulled in with the copy module
+stages:
+  - name: ghostty
+    from: ghcr.io/ublue-os/bluefin-dx:stable # build against the same libraries as the final image
+    modules:
+      - type: script
+        scripts:
+          - build-ghostty.sh
+
 # module configuration, executed in order
 # you can include multiple instances of the same module
 modules:
@@ -18,9 +27,15 @@ modules:
       - source: system
         destination: / # copies files/system/* (* means everything inside it) into your image's root folder /
 
+  - type: copy
+    from: ghostty
+    src: /out/ghostty/usr
+    dest: /usr
+
   - type: dnf
     install:
       packages:
+        - gtk4-layer-shell # runtime dependency of ghostty
         - git-subtree
         - git-svn
         - ktls-utils
