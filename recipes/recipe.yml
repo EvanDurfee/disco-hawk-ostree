@@ -32,6 +32,10 @@ modules:
     src: /out/ghostty/usr
     dest: /usr
 
+  - type: script
+    scripts:
+      - refresh-desktop-caches.sh
+
   - type: dnf
     install:
       packages:
