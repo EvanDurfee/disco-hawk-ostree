@@ -1,0 +1,70 @@
+name: update-ghostty
+on:
+  schedule:
+    - cron: "00 05 * * *" # check for new releases at 05:00 UTC every day
+  workflow_dispatch: # allow manually triggering updates
+jobs:
+  update:
+    name: Update Ghostty and Zig
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      SCRIPT: files/scripts/build-ghostty.sh
+      # https://github.com/ghostty-org/ghostty/blob/main/PACKAGING.md
+      GHOSTTY_MINISIGN_KEY: RWQlAjJC23149WL2sEpT/l0QKy7hMIFhYdQOFy0Z7z7PbneUgvlsnYcV
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check for new versions
+        id: check
+        run: |
+          set -euo pipefail
+          current=$(sed -n 's/^GHOSTTY_VERSION=//p' "$SCRIPT")
+          latest=$(git ls-remote --tags https://github.com/ghostty-org/ghostty.git \
+            | awk -F/ '{print $3}' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sed 's/^v//' | sort -V | tail -1)
+          echo "Current: $current, latest: $latest"
+          if [ "$current" = "$latest" ]; then
+            exit 0
+          fi
+
+          sudo apt-get update -q && sudo apt-get install -yq minisign
+          work=$(mktemp -d)
+          base="https://release.files.ghostty.org/${latest}/ghostty-${latest}.tar.gz"
+          curl -fsSL -o "$work/ghostty.tar.gz" "$base"
+          curl -fsSL -o "$work/ghostty.tar.gz.minisig" "$base.minisig"
+          minisign -V -P "$GHOSTTY_MINISIGN_KEY" -m "$work/ghostty.tar.gz"
+          ghostty_sha=$(sha256sum "$work/ghostty.tar.gz" | cut -d' ' -f1)
+
+          zig=$(tar -xzOf "$work/ghostty.tar.gz" "ghostty-${latest}/build.zig.zon" \
+            | sed -n 's/.*\.minimum_zig_version = "\(.*\)".*/\1/p')
+          curl -fsSL -o "$work/zig.tar.xz" \
+            "https://ziglang.org/download/${zig}/zig-x86_64-linux-${zig}.tar.xz"
+          zig_sha=$(sha256sum "$work/zig.tar.xz" | cut -d' ' -f1)
+
+          sed -i \
+            -e "s/^GHOSTTY_VERSION=.*/GHOSTTY_VERSION=${latest}/" \
+            -e "s/^GHOSTTY_SHA256=.*/GHOSTTY_SHA256=${ghostty_sha}/" \
+            -e "s/^ZIG_VERSION=.*/ZIG_VERSION=${zig}/" \
+            -e "s/^ZIG_SHA256=.*/ZIG_SHA256=${zig_sha}/" \
+            "$SCRIPT"
+          echo "ghostty=$latest" >> "$GITHUB_OUTPUT"
+          echo "zig=$zig" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        if: steps.check.outputs.ghostty != ''
+        uses: peter-evans/create-pull-request@v8
+        with:
+          # PRs opened with the default token don't trigger the build workflow;
+          # set UPDATE_PR_TOKEN to a PAT so the update gets a test build.
+          token: ${{ secrets.UPDATE_PR_TOKEN || github.token }}
+          branch: update/ghostty
+          commit-message: "Update Ghostty to ${{ steps.check.outputs.ghostty }}"
+          title: "Update Ghostty to ${{ steps.check.outputs.ghostty }}"
+          body: |
+            Updates Ghostty to [${{ steps.check.outputs.ghostty }}](https://ghostty.org/docs/install/release-notes) and Zig to ${{ steps.check.outputs.zig }} (the minimum version it requires).
+
+            The source tarball's minisign signature was verified and both checksums were recomputed.
+          delete-branch: true
