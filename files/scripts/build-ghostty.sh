@@ -4,12 +4,12 @@
 # build stage; the installed tree in /out/ghostty is copied into the final image.
 set -oue pipefail
 
-GHOSTTY_VERSION=1.3.1
-GHOSTTY_SHA256=3349d25600ffbda281197a18314f7d18791969cffe9474f0ff16a45a9ebfccdb
+GHOSTTY_VERSION=1.4.0
+GHOSTTY_SHA256=cb188ac6c3a8278d5fd7bfef15d8c017104c87f638b5560eb38024a71ae0f005
 
 # Must match .minimum_zig_version in Ghostty's build.zig.zon
-ZIG_VERSION=0.15.2
-ZIG_SHA256=02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239
+ZIG_VERSION=0.17.0
+ZIG_SHA256=1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026
 
 dnf -y install \
     gettext \
