@@ -16,6 +16,7 @@ dnf -y install \
     gtk4-devel \
     gtk4-layer-shell-devel \
     libadwaita-devel \
+    libglvnd-devel \
     libX11-devel \
     pkgconf-pkg-config \
     tar \
